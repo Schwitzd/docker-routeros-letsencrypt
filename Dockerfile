@@ -24,8 +24,8 @@ COPY assets/*.sh /app/
 RUN chown -R lego:lego /app; \
     chmod -R 550 /app; \
     chmod +x /app/*.sh; \
-    mkdir -p /letsencrypt \
-    chown -R lego:lego /letsencrypt;
+    mkdir -p /letsencrypt; \
+    chown -R lego:lego /letsencrypt
 
 # This is the only signal from the docker host that appears to stop crond
 STOPSIGNAL SIGKILL
