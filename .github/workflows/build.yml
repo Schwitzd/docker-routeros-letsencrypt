@@ -1,7 +1,7 @@
 name: Build Docker Images
 
 env:
-  DOCKERHUB_TAG: "foorschtbar/routeros-letsencrypt"
+  DOCKERHUB_TAG: "Schwitzd/routeros-letsencrypt"
   DOCKERHUB_SHORT_DESCRIPTION: "Let's Encrypt for RouterOS Webserver/API"
   DOCKERHUB_README_FILE: "README.md"
 
