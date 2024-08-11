@@ -21,11 +21,10 @@ COPY assets/cronjob /var/spool/cron/crontabs/lego
 RUN chown -R lego:lego /var/spool/cron/crontabs/lego && chmod -R 640 /var/spool/cron/crontabs/lego
 
 COPY assets/*.sh /app/
-RUN chown -R lego:lego /app; \
-    chmod -R 550 /app; \
+RUN chmod -R 550 /app; \
     chmod +x /app/*.sh; \
     mkdir -p /letsencrypt; \
-    chown -R lego:lego /letsencrypt
+    chown -R lego:lego /letsencrypt /app
 
 # This is the only signal from the docker host that appears to stop crond
 STOPSIGNAL SIGKILL
