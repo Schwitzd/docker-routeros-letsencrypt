@@ -6,9 +6,9 @@ env:
   DOCKERHUB_README_FILE: "README.md"
 
 on:
-  push:
-    branches:
-      - master
+#  push:
+#    branches:
+#      - master
 #  schedule:
 #    - cron: "0 5 * * 5"
   workflow_dispatch:
