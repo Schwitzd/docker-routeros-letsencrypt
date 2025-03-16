@@ -1,7 +1,8 @@
 #!/bin/sh
 set -a
 
-echo "+++ Welcome to routeros-letsencrypt +++"
+VERSION=$(cat /app/version.txt)
+echo "+++ Welcome to routeros-letsencrypt (v${VERSION}) +++"
 
 # Run it once to initiate
 echo "Run it once to initiate..."
