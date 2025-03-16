@@ -8,48 +8,31 @@ on:
 
 jobs:
   release:
-    name: Build & Release Docker Image
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      issues: write
-      pull-requests: write
-      packages: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
-
       - name: Install Semantic-Release
-        run: npm install -g semantic-release @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/changelog @semantic-release/git @semantic-release/github semantic-release-docker
+        run: npm install -g semantic-release
 
       - name: Configure Git User
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Run Semantic-Release
-        id: version
+      - name: Run Semantic-Release and Capture Version
+        id: semantic_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=$(npx semantic-release --dry-run | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
-          echo ${VERSION} > assets/version.txt
+          npx semantic-release
+
+      - name: Save Version to File
+        run: |
+          echo "${{ steps.semantic_release.outputs.version }}" > assets/version.txt
           git add assets/version.txt
-          git commit -m "chore(release): update version to ${VERSION}"
+          git commit -m "chore(release): update version to ${{ steps.semantic_release.outputs.version }}"
           git push origin main
