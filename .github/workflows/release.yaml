@@ -31,8 +31,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=$(npx semantic-release)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          npx semantic-release --ci
 
       - name: Save Version to File
         run: |
