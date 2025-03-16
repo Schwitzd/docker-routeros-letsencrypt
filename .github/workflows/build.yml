@@ -6,9 +6,7 @@ env:
   DOCKERHUB_README_FILE: "README.md"
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   main:
