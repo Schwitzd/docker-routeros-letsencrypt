@@ -1,4 +1,4 @@
-name: Release Docker Image
+name: Build & Publish Docker Image
 
 env:
   DOCKERHUB_TAG: "schwitzd/routeros-letsencrypt"
