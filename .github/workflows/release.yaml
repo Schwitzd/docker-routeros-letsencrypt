@@ -16,7 +16,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Semantic-Release
-        run: npm install -g semantic-release @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/git @semantic-release/github semantic-release-gha-output
+        run: npm install -g semantic-release @semantic-release/release-notes-generator @semantic-release/git @semantic-release/github semantic-release-gha-output commit-analyzer-fail-on-no-release
 
       - name: Configure Git User
         run: |
