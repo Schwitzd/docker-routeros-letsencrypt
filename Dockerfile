@@ -4,7 +4,6 @@ FROM goacme/lego:v4.22.2
 # Define version argument and label
 ARG VERSION
 LABEL version="${VERSION}"
-LABEL test=test
 
 # Install necessary packages
 RUN apk update && apk add --no-cache \
