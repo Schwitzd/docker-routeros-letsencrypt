@@ -8,10 +8,11 @@ on:
 
 jobs:
   build:
-    name: Build & Capture Version
+    name: Build & capture version
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.semantic_release.outputs.version }}
+      version: ${{ steps.semantic-release.outputs.version }}
+      commit_hash: ${{ steps.commit-and-push.outputs.commit_hash }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,34 +22,32 @@ jobs:
       - name: Install Semantic-Release
         run: npm install -g semantic-release @semantic-release/release-notes-generator @semantic-release/git @semantic-release/github semantic-release-gha-output commit-analyzer-fail-on-no-release
 
-      - name: Configure Git User
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Run Semantic-Release and Capture Version
-        id: semantic_release
+      - name: Run Semantic-Release and capture version
+        id: semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npx semantic-release --ci
 
-      - name: Save Version to File
-        run: |
-          echo "${{ steps.semantic_release.outputs.version }}" > assets/version.txt
-          git add assets/version.txt
-          git commit -m "chore(release): update version to ${{ steps.semantic_release.outputs.version }}"
-          git push origin main
+      - name: Save version to file
+        run: echo "${{ steps.semantic-release.outputs.version }}" > assets/version.txt
+
+      - name: Commit version.txt
+        id: commit-and-push
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "chore(release): update version to ${{ steps.semantic-release.outputs.version }}"
+          file_pattern: assets/version.txt
 
   release:
-    name: Release Docker Image
+    name: Release Docker image
     runs-on: ubuntu-latest
     needs: build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ needs.build.outputs.commit_hash }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -62,7 +61,7 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}
 
-      - name: Build and Push Docker Image
+      - name: Build & push Docker image
         uses: docker/build-push-action@v5
         with:
           push: true
@@ -72,7 +71,7 @@ jobs:
             ${{ env.DOCKERHUB_TAG }}:${{ needs.build.outputs.version }}
           platforms: linux/amd64,linux/arm64
 
-      - name: Update Docker Hub Description
+      - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
