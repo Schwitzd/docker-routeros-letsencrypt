@@ -35,4 +35,4 @@ STOPSIGNAL SIGKILL
 
 # switch user and set entrypoint 
 USER lego
-ENTRYPOINT "/app/entrypoint.sh"
+ENTRYPOINT ["/app/entrypoint.sh"]
