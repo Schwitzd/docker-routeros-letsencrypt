@@ -20,8 +20,10 @@ SET_ON_OVPN=${SET_ON_OVPN:=false}
 SET_ON_HOTSPOT=${SET_ON_HOTSPOT:=false}
 HOTSPOT_PROFILE_NAME=${HOTSPOT_PROFILE_NAME:-}
 
+echo "+++ Setup +++"
+
 # Get endpoint
-echo -n "Endpoint: "
+echo -n "LEGO endpoint: "
 if [ "$LEGO_STAGING" == "1" ]; then
     ENDPOINT='https://acme-staging-v02.api.letsencrypt.org/directory'
     echo "staging ($ENDPOINT)"
@@ -32,8 +34,11 @@ fi
 
 LEGO_DOMAINS=${LEGO_DOMAINS:-}
 LEGO_DOMAINS="$(echo -e "${LEGO_DOMAINS}" | tr -d '[:space:]')" # Remove all whitespace 
-echo "Domains: $LEGO_DOMAINS"
+echo "LEGO domains: $LEGO_DOMAINS"
 LEGO_DOMAINS=$(  ( [ -n "$LEGO_DOMAINS" ] && echo ${LEGO_DOMAINS//;/ --domains } ) )
+
+# Print LEGO version
+echo "LEGO version: $(/lego --version)"
 
 # Fix filename if ROUTEROS_DOMAIN domain begins with wildcard-domain *.domain.tld
 ROUTEROS_DOMAIN=${ROUTEROS_DOMAIN//\*/_}
@@ -51,6 +56,7 @@ LEGO_EMAIL_ADDRESS=${LEGO_EMAIL_ADDRESS:-}
 
 [ -n "$LEGO_PROVIDER" ] && echo "DNS provider: $LEGO_PROVIDER"
 
+echo "+++ Get Certificate +++"
 
 #Check if we had cert and keyfile
 if [ ! -f $CERTIFICATE ] || [ ! -f $KEY ] || [ ! -d $ACCOUNTS ]; then
@@ -72,8 +78,10 @@ if [ ! $? == 0 ]; then
 fi
 
 #######################
-# RouterOS Upload     #
+# RouterOS Precheck   #
 #######################
+
+echo "+++ RouterOS Precheck +++"
 
 if [[ -z $ROUTEROS_USER ]] || [[ -z $ROUTEROS_HOST ]] || [[ -z $ROUTEROS_SSH_PORT ]] || [[ -z $ROUTEROS_PRIVATE_KEY ]] || [[ -z $ROUTEROS_DOMAIN ]]; then
     echo "Check the environment variables. Some information is missing." && exit 1
@@ -94,17 +102,19 @@ echo -n "Checking connection to RouterOS..."
 $routeros /system resource print > /dev/null
 [ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
 
-#######################
-# Create Certificate  #
-#######################
+###############################
+# RouterOS Upload Certificate #
+###############################
+
+echo "+++ RouterOS Upload Certificate +++"
 
 # Clean up leading '_' character for wildcard domains
 ROUTEROS_FILENAME=autoupload_${ROUTEROS_DOMAIN/_/}
 
 # Remove previous certificate and delete Certificate file if the file exist on RouterOS
 echo -n "Removing previous certificate and delete certificate file if the file exist on RouterOS..."
-$routeros /certificate remove [find name=$ROUTEROS_FILENAME.pem_0] \; /certificate remove [find name=$ROUTEROS_FILENAME.pem_1] \; /certificate remove [find name=$ROUTEROS_FILENAME.pem_2] \; /file remove $ROUTEROS_FILENAME.pem > /dev/null
-echo "DONE"
+$routeros /certificate remove [find name=$ROUTEROS_FILENAME.pem_0] \; /certificate remove [find name=$ROUTEROS_FILENAME.pem_1] \; /certificate remove [find name=$ROUTEROS_FILENAME.pem_2] \; /file remove [find name="$ROUTEROS_FILENAME.pem"] > /dev/null
+[ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
 
 # Upload Certificate to RouterOS
 echo -n "Uploading Certificate to RouterOS..."
@@ -112,57 +122,76 @@ scp -q -P $ROUTEROS_SSH_PORT -i "$ROUTEROS_PRIVATE_KEY" "$CERTIFICATE" "$ROUTERO
 [ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
 
 sleep 2
-# Import certificate file and delete certificate file after import
-echo -n "Importing certificate file and delete certificate file after import..."
-$routeros /certificate import file-name=$ROUTEROS_FILENAME.pem passphrase=\"\" \; > /dev/null
+# Import certificate file
+echo -n "Importing certificate file..."
+
+$routeros /certificate import file-name=$ROUTEROS_FILENAME.pem passphrase=\"\" > /dev/null
+[ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
+
+# optional remove certificate file after import
+echo -n "Deleting certificate file after import..."
+$routeros /file remove [find name="$ROUTEROS_FILENAME.pem"] > /dev/null
 [ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
 
 #######################
-# Create Key          #
+# RouterOS Upload Key #
 #######################
 
-# Delete Certificate file if the file exist on RouterOS
-echo -n "Deleting Certificate file if the file exist on RouterOS..."
-$routeros /file remove $ROUTEROS_FILENAME.key > /dev/null
-echo 'DONE'
+echo "+++ RouterOS Upload Key +++"
+
+# Delete key file if the file exist on RouterOS
+echo -n "Deleting key file if the file exist on RouterOS..."
+$routeros /file remove [find name="$ROUTEROS_FILENAME.key"] > /dev/null
+[ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
 
 # Upload Key to RouterOS
-echo -n "Upload Key to RouterOS..."
+echo -n "Upload key to RouterOS..."
 scp -q -P $ROUTEROS_SSH_PORT -i "$ROUTEROS_PRIVATE_KEY" "$KEY" "$ROUTEROS_USER"@"$ROUTEROS_HOST":"$ROUTEROS_FILENAME.key"
 [ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
 
 sleep 2
-# Import Key file and delete Certificate file after import
-echo -n "Importing Key file and delete Certificate file after import..."
-$routeros /certificate import file-name=$ROUTEROS_FILENAME.key passphrase=\"\" \; > /dev/null
+# Import Key file 
+echo -n "Importing key file..."
+$routeros /certificate import file-name=$ROUTEROS_FILENAME.key passphrase=\"\" \ > /dev/null
 [ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
+
+# optional remove key file after import
+echo -n "Deleting key file after import..."
+$routeros /file remove [find name="$ROUTEROS_FILENAME.key"] > /dev/null
+[ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
+
+#######################
+# RouterOS Set Cert   #
+#######################
+
+echo "+++ RouterOS Set Certificate +++"
 
 # Set certificate to WebServer
 if [ "$SET_ON_WEB" = true ]; then
-echo -n "Setting certificate to Webserver..."
-$routeros /ip service set www-ssl certificate=$ROUTEROS_FILENAME.pem_0 > /dev/null
-[ ! $? == 0 ] && echo 'ERROR setting certificate on WebServer!' && exit 1 || echo 'DONE setting certificate on WebServer'
+    echo -n "Setting certificate to Webserver..."
+    $routeros /ip service set [find dynamic =no and name =www-ssl] certificate=$ROUTEROS_FILENAME.pem_0 > /dev/null
+    [ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
 fi
 
 # Set certificate to API
 if [ "$SET_ON_API" = true ]; then
-echo -n "Setting certificate to API..."
-$routeros /ip service set api-ssl certificate=$ROUTEROS_FILENAME.pem_0 > /dev/null
-[ ! $? == 0 ] && echo 'ERROR setting certificate on API!' && exit 1 || echo 'DONE setting certificate on API'
+    echo -n "Setting certificate to API..."
+    $routeros /ip service set [find dynamic =no and name =api-ssl] certificate=$ROUTEROS_FILENAME.pem_0 > /dev/null
+    [ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
 fi
 
 # Set certificate to OpenVPN
 if [ "$SET_ON_OVPN" = true ]; then
-echo -n "Setting certificate to OpenVPN..."
-$routeros /interface ovpn-server server set enabled=yes certificate=$ROUTEROS_FILENAME.pem_0 > /dev/null
-[ ! $? == 0 ] && echo 'ERROR setting certificate on OpenVPN!' && exit 1 || echo 'DONE setting certificate on OpenVPN'
+    echo -n "Setting certificate to OpenVPN..."
+    $routeros /interface ovpn-server server set enabled=yes certificate=$ROUTEROS_FILENAME.pem_0 > /dev/null
+    [ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
 fi
 
 # Set certificate to Hotspot
 if [ "$SET_ON_HOTSPOT" = true ]; then
-echo -n "Setting certificate to Hotspot..."
-$routeros /ip/hotspot/profile set ssl-certificate=$ROUTEROS_FILENAME.pem_0 $HOTSPOT_PROFILE_NAME > /dev/null
-[ ! $? == 0 ] && echo 'ERROR setting certificate on Hotspot!' && exit 1 || echo 'DONE setting certificate on Hotspot'
+    echo -n "Setting certificate to Hotspot..."
+    $routeros /ip/hotspot/profile set ssl-certificate=$ROUTEROS_FILENAME.pem_0 $HOTSPOT_PROFILE_NAME > /dev/null
+    [ ! $? == 0 ] && echo 'ERROR!' && exit 1 || echo 'DONE'
 fi
 
 echo "End cycle at $( date '+%Y-%m-%d %H:%M:%S' )"
